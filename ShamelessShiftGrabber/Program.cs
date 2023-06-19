@@ -1,5 +1,6 @@
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.CompilerServices;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,19 +31,24 @@ app.UseHttpsRedirection();
 
 app.MapGet("/hello", () => "Hello World!");
 
-app.MapPost("/shifts", async ([FromBody] ShiftRequest shiftRequest, IHttpClientFactory _httpClientFactory, IConfiguration _configuration) =>
+app.MapPost("/shifts", async (
+    [FromBody] ShiftRequest shiftRequest,
+    IHttpClientFactory httpClientFactory,
+    IConfiguration configuration
+    ) =>
 {
-    Console.WriteLine(shiftRequest.UserId);
+    if (shiftRequest == null || shiftRequest.Shifts == null)
+    {
+        throw new ArgumentNullException("ShiftRequest or Shifts cannot be null");
+    }
 
-    var macrodroidDeviceId = _configuration.GetValue<string>("MacrodroidDeviceId");
+    Console.WriteLine(shiftRequest.Shifts.Length);
 
-    var url = $"{macrodroidDeviceId}/gug";
-
-    var client = _httpClientFactory.CreateClient("macrodroid");
-    var response = await client.GetAsync(url);
-    Console.WriteLine(response.StatusCode);
-
-
+    if (shiftRequest.Shifts.Length > 0)
+    {
+        var macrodroid = new Macrodroid(httpClientFactory, configuration);
+        await macrodroid.Send(shiftRequest.Shifts);
+    }
 
     return shiftRequest;
 });
@@ -50,41 +56,47 @@ app.MapPost("/shifts", async ([FromBody] ShiftRequest shiftRequest, IHttpClientF
 app.Run();
 
 
-
 class ShiftRequest
 {
-    public string UserId { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public string EventType { get; set; }
-    public string EventData { get; set; }
-    public string Resource { get; set; }
+    public Shift[] Shifts { get; set; }
 }
 
-/*
-var summaries = new[]
+class Shift
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
-
-app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    public string Name { get; set; }
+    public string ShiftDate { get; set; }
+    public string ShiftTime { get; set; }
+    public string Place { get; set; }
+    public string Role { get; set; }
+    public string Occupancy { get; set; }
 }
-*/
+
+class Macrodroid
+{
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IConfiguration _configuration;
+
+    public Macrodroid(IHttpClientFactory httpClientFactory, IConfiguration configuration)
+    {
+        _httpClientFactory = httpClientFactory;
+        _configuration = configuration;
+    }
+
+    public async Task Send(Shift[] shifts)
+    {
+ 
+        var macrodroidDeviceId = _configuration.GetValue<string>("MacrodroidDeviceId");
+
+        var url = $"{macrodroidDeviceId}/gug";
+        var client = _httpClientFactory.CreateClient("macrodroid");
+
+       foreach (var shift in shifts)
+        {
+            //await SendSingle(shift);
+        }
+        
+        var response = await client.GetAsync(url);
+
+        Console.WriteLine(response.StatusCode);
+    }
+}
