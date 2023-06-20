@@ -14,6 +14,8 @@ builder.Services.AddHttpClient("macrodroid", c =>
     c.DefaultRequestHeaders.Add("Accept", "application/json");
 });
 
+builder.Services.AddLogging();
+
 builder.Services.AddTransient<Macrodroid>();
 
 var app = builder.Build();
@@ -33,7 +35,8 @@ app.MapGet("/hello", () => "Hello World!");
 
 app.MapPost("/shifts", async (
     [FromBody] ShiftRequest shiftRequest,
-    Macrodroid macrodroid
+    Macrodroid macrodroid,
+    ILogger<Program> logger
 ) =>
 {
     if (shiftRequest == null || shiftRequest.Shifts == null)
@@ -41,14 +44,14 @@ app.MapPost("/shifts", async (
         return Results.BadRequest("Shifts are required");
     }
 
-    Console.WriteLine(shiftRequest.Shifts.Length);
+    logger.LogInformation($"Received shifts: {shiftRequest.Shifts.Length}");
 
     if (shiftRequest.Shifts.Length > 0)
     {
-        await macrodroid.Send(shiftRequest.Shifts);
+       return await macrodroid.Send(shiftRequest.Shifts);
     }
 
-    return Results.Ok(shiftRequest);
+    return Results.Ok("No shifts were received or processed.");
 });
 
 app.Run();
