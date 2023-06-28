@@ -8,6 +8,9 @@ internal class Macrodroid
     private readonly IConfiguration _configuration;
     private readonly ILogger<Macrodroid> _logger;
 
+    private readonly string _baseUrl;
+    private readonly HttpClient _client;
+
     public Macrodroid(
         IHttpClientFactory httpClientFactory, 
         IConfiguration configuration,
@@ -17,27 +20,49 @@ internal class Macrodroid
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
         _logger = logger;
+        
+        var macrodroidDeviceId = _configuration.GetValue<string>("MacrodroidDeviceId");
+        var macrodroidEndpoint = _configuration.GetValue<string>("MacrodroidEndpoint");
+
+        _baseUrl = $"{macrodroidDeviceId}/{macrodroidEndpoint}";
+        _client = _httpClientFactory.CreateClient("macrodroid");
     }
 
     public async Task<IResult> Send(Shift[] shifts)
     {
-        var macrodroidDeviceId = _configuration.GetValue<string>("MacrodroidDeviceId");
-        var macrodroidEndpoint = _configuration.GetValue<string>("MacrodroidEndpoint");
-
-        var url = $"{macrodroidDeviceId}/{macrodroidEndpoint}";
-        var client = _httpClientFactory.CreateClient("macrodroid");
+        var successSendCount = 0;
 
         foreach (var shift in shifts)
         {
-            //await SendSingle(shift);
+            var sendResult = await SendSingle(shift);
+
+            if (sendResult)
+            {
+                successSendCount++;
+            }
         }
         
-        var response = await client.GetAsync(url);
+        var successMessage = $"Successfully sent {successSendCount}/{shifts.Length} shifts to Macrodroid";
 
+        _logger.LogInformation(successMessage);
+
+        if (successSendCount > 0)
+        {
+            return Results.Ok(successMessage);
+        }
+
+        return Results.BadRequest("Failed to send all shifts to Macrodroid");
+    }
+
+    private async Task<bool> SendSingle(Shift shift)
+    {
+        var url = $"{_baseUrl}?name={shift.Name}&shiftdate={shift.ShiftDate}&shifttime={shift.ShiftTime}&place={shift.Place}&role={shift.Role}&occupancy={shift.Occupancy}";
+
+        var response = await _client.GetAsync(url);
+        
         if (response.IsSuccessStatusCode)
         {
-            _logger.LogInformation("Successfully sent shifts to macrodroid");
-            return Results.Ok();
+            return true;
         }
 
         var error =
@@ -45,6 +70,6 @@ internal class Macrodroid
 
         _logger.LogError(error);
 
-        return Results.BadRequest(error);
+        return false;
     }
 }
