@@ -31,8 +31,6 @@ app.UseHttpsRedirection();
 
 
 
-app.MapGet("/hello", () => "Hello World!");
-
 app.MapPost("/shifts", async (
     [FromBody] ShiftRequest shiftRequest,
     Macrodroid macrodroid,

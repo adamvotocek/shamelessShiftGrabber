@@ -22,8 +22,9 @@ internal class Macrodroid
     public async Task<IResult> Send(Shift[] shifts)
     {
         var macrodroidDeviceId = _configuration.GetValue<string>("MacrodroidDeviceId");
+        var macrodroidEndpoint = _configuration.GetValue<string>("MacrodroidEndpoint");
 
-        var url = $"{macrodroidDeviceId}/gug";
+        var url = $"{macrodroidDeviceId}/{macrodroidEndpoint}";
         var client = _httpClientFactory.CreateClient("macrodroid");
 
         foreach (var shift in shifts)
