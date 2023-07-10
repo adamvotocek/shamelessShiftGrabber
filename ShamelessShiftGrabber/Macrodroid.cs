@@ -1,13 +1,8 @@
-using Microsoft.AspNetCore.Http.HttpResults;
-
 namespace ShamelessShiftGrabber;
 
 internal class Macrodroid
 {
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IConfiguration _configuration;
     private readonly ILogger<Macrodroid> _logger;
-
     private readonly string _baseUrl;
     private readonly HttpClient _client;
 
@@ -17,33 +12,37 @@ internal class Macrodroid
         ILogger<Macrodroid> logger
     )
     {
-        _httpClientFactory = httpClientFactory;
-        _configuration = configuration;
         _logger = logger;
         
-        var macrodroidDeviceId = _configuration.GetValue<string>("MacrodroidDeviceId");
-        var macrodroidEndpoint = _configuration.GetValue<string>("MacrodroidEndpoint");
+        var macrodroidDeviceId = configuration.GetValue<string>("MacrodroidDeviceId");
+        var macrodroidEndpoint = configuration.GetValue<string>("MacrodroidEndpoint");
 
         _baseUrl = $"{macrodroidDeviceId}/{macrodroidEndpoint}";
-        _client = _httpClientFactory.CreateClient("macrodroid");
+        _client = httpClientFactory.CreateClient("macrodroid");
     }
 
-    public async Task<IResult> Send(Shift[] shifts)
+    public async Task<IResult> Send(ICollection<IncomingShift> shifts)
     {
+        if (shifts.Count == 0)
+        {
+            const string noShiftsMessage = "* * * No shifts to send to Macrodroid";
+            _logger.LogInformation(noShiftsMessage);
+            
+            return Results.Ok(noShiftsMessage);
+        }
+
         var successSendCount = 0;
 
         foreach (var shift in shifts)
         {
-            var sendResult = await SendSingle(shift);
-
-            if (sendResult)
+            var isShiftSentOk = await SendSingle(shift);
+            if (isShiftSentOk)
             {
                 successSendCount++;
             }
         }
         
-        var successMessage = $"Successfully sent {successSendCount}/{shifts.Length} shifts to Macrodroid";
-
+        var successMessage = $"* * * Successfully sent {successSendCount}/{shifts.Count} shifts to Macrodroid";
         _logger.LogInformation(successMessage);
 
         if (successSendCount > 0)
@@ -54,9 +53,15 @@ internal class Macrodroid
         return Results.BadRequest("Failed to send all shifts to Macrodroid");
     }
 
-    private async Task<bool> SendSingle(Shift shift)
+    private async Task<bool> SendSingle(IncomingShift incomingShift)
     {
-        var url = $"{_baseUrl}?name={shift.Name}&shiftdate={shift.ShiftDate}&shifttime={shift.ShiftTime}&place={shift.Place}&role={shift.Role}&occupancy={shift.Occupancy}";
+        var url = $"{_baseUrl}?name={incomingShift.Name}" +
+                  $"&shiftdate={incomingShift.ShiftDate}" +
+                  $"&shifttime={incomingShift.ShiftTime}" +
+                  $"&place={incomingShift.Place}" +
+                  $"&role={incomingShift.Role}" +
+                  $"&occupancy={incomingShift.Occupancy}" +
+                  $"&detailurl={incomingShift.DetailUrl}";
 
         var response = await _client.GetAsync(url);
         

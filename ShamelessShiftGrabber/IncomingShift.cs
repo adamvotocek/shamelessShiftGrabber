@@ -1,6 +1,6 @@
 namespace ShamelessShiftGrabber;
 
-internal class Shift
+internal class IncomingShift
 {
     public string Name { get; set; }
     public string ShiftDate { get; set; }
@@ -8,4 +8,5 @@ internal class Shift
     public string Place { get; set; }
     public string Role { get; set; }
     public string Occupancy { get; set; }
+    public string DetailUrl { get; set; }
 }
