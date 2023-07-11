@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ShamelessShiftGrabber;
+using ShamelessShiftGrabber.Contracts;
 using ShamelessShiftGrabber.Macrodroid;
 using ShamelessShiftGrabber.Repository;
 

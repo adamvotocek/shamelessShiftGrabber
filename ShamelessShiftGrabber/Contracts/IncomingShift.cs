@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace ShamelessShiftGrabber;
+namespace ShamelessShiftGrabber.Contracts;
 
 internal class IncomingShift
 {

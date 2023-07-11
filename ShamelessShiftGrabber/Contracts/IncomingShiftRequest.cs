@@ -1,4 +1,4 @@
-namespace ShamelessShiftGrabber;
+namespace ShamelessShiftGrabber.Contracts;
 
 internal class IncomingShiftRequest
 {

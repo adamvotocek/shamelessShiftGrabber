@@ -1,3 +1,5 @@
+using ShamelessShiftGrabber.Contracts;
+
 namespace ShamelessShiftGrabber.Macrodroid;
 
 internal class Macrodroid

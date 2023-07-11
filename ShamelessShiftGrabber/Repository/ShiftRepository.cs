@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ShamelessShiftGrabber.Contracts;
 
 namespace ShamelessShiftGrabber.Repository;
 

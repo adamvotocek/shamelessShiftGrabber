@@ -1,3 +1,5 @@
+using ShamelessShiftGrabber.Contracts;
+
 namespace ShamelessShiftGrabber.Repository;
 
 internal static class ShiftExtensions
