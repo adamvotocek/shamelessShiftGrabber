@@ -45,21 +45,17 @@ internal class ShiftRepository
         ICollection<IncomingShift> filteredShifts
     )
     {
-        var shiftId = incomingShift.GetShiftId();
-        if (shiftId == default)
+        incomingShift.TryFillIdAndValidDate();
+
+        if (!incomingShift.IsValid())
         {
-            _logger.LogWarning($"Failed to parse shift ID from incoming shift DetailUrl: {incomingShift.DetailUrl}");
+            _logger.LogWarning(
+                $"Incoming shift is not valid. Unable to parse Id from: {incomingShift.DetailUrl} or ValidDate from {incomingShift.ShiftDate}"
+            );
             return;
         }
 
-        var shiftDate = incomingShift.GetShiftDate();
-        if (shiftDate == default)
-        {
-            _logger.LogWarning($"Failed to parse shift date from incoming shift date: {incomingShift.ShiftDate}");
-            return;
-        }
-
-        await InsertOrUpdate(incomingShift, existingShifts, filteredShifts, shiftId, shiftDate);
+        await InsertOrUpdate(incomingShift, existingShifts, filteredShifts);
     }
 
     /// <summary>
@@ -69,43 +65,41 @@ internal class ShiftRepository
     private async Task InsertOrUpdate(
         IncomingShift incomingShift,
         IEnumerable<Shift> existingShifts,
-        ICollection<IncomingShift> filteredShifts,
-        int shiftId,
-        DateTime shiftDate
+        ICollection<IncomingShift> filteredShifts
     )
     {
-        var existingShift = existingShifts.FirstOrDefault(s => s.Id == shiftId);
+        var existingShift = existingShifts.FirstOrDefault(s => s.Id == incomingShift.Id);
 
         if (existingShift == null)
         {
-            filteredShifts.Add(incomingShift);
-            _logger.LogInformation($"* * * Found new shift: {incomingShift.DetailUrl} {incomingShift.Name}");
+            AddToFilteredShifts(incomingShift, filteredShifts, true);
 
-            // Insert shift into database
+            // Insert new shift into database
             await _shiftsDatabaseContext.Shifts.AddAsync(
-                new Shift
-                {
-                    Id = shiftId,
-                    Name = incomingShift.Name,
-                    ShiftDate = shiftDate,
-                    ShiftTime = incomingShift.ShiftTime,
-                    Created = DateTime.Now,
-                    Modified = DateTime.Now
-                }
+                incomingShift.CreateShift()
             );
         }
-        else if (existingShift.Name != incomingShift.Name ||
-                 existingShift.ShiftDate.Date != shiftDate.Date ||
-                 existingShift.ShiftTime != incomingShift.ShiftTime)
+        else if (existingShift.IsDifferentFrom(incomingShift))
         {
-            // Update shift in the database
-            filteredShifts.Add(incomingShift);
-            _logger.LogInformation($"* * * Found updated shift: {incomingShift.DetailUrl} {incomingShift.Name}");
+            // Update existing shift in the database
+            AddToFilteredShifts(incomingShift, filteredShifts, false);
 
-            existingShift.Name = incomingShift.Name;
-            existingShift.ShiftDate = shiftDate;
-            existingShift.ShiftTime = incomingShift.ShiftTime;
-            existingShift.Modified = DateTime.Now;
+            existingShift.UpdateFrom(incomingShift);
         }
+    }
+
+    private void AddToFilteredShifts(
+        IncomingShift incomingShift, 
+        ICollection<IncomingShift> filteredShifts, 
+        bool isNewShift
+    )
+    {
+        filteredShifts.Add(incomingShift);
+
+        var msg = isNewShift
+            ? "Found new shift"
+            : "Found updated shift";
+
+        _logger.LogInformation($"* * * {msg}: {incomingShift.DetailUrl} {incomingShift.Name}");
     }
 }
