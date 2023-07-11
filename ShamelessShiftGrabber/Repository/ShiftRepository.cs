@@ -1,7 +1,6 @@
-using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 
-namespace ShamelessShiftGrabber;
+namespace ShamelessShiftGrabber.Repository;
 
 internal class ShiftRepository
 {
@@ -46,14 +45,14 @@ internal class ShiftRepository
         ICollection<IncomingShift> filteredShifts
     )
     {
-        var shiftId = GetShiftId(incomingShift);
+        var shiftId = incomingShift.GetShiftId();
         if (shiftId == default)
         {
             _logger.LogWarning($"Failed to parse shift ID from incoming shift DetailUrl: {incomingShift.DetailUrl}");
             return;
         }
 
-        var shiftDate = GetShiftDate(incomingShift);
+        var shiftDate = incomingShift.GetShiftDate();
         if (shiftDate == default)
         {
             _logger.LogWarning($"Failed to parse shift date from incoming shift date: {incomingShift.ShiftDate}");
@@ -75,9 +74,9 @@ internal class ShiftRepository
         DateTime shiftDate
     )
     {
-        var foundShift = existingShifts.FirstOrDefault(s => s.Id == shiftId);
+        var existingShift = existingShifts.FirstOrDefault(s => s.Id == shiftId);
 
-        if (foundShift == null)
+        if (existingShift == null)
         {
             filteredShifts.Add(incomingShift);
             _logger.LogInformation($"* * * Found new shift: {incomingShift.DetailUrl} {incomingShift.Name}");
@@ -95,38 +94,18 @@ internal class ShiftRepository
                 }
             );
         }
-        else if (foundShift.Name != incomingShift.Name ||
-                 foundShift.ShiftDate.Date != shiftDate.Date ||
-                 foundShift.ShiftTime != incomingShift.ShiftTime)
+        else if (existingShift.Name != incomingShift.Name ||
+                 existingShift.ShiftDate.Date != shiftDate.Date ||
+                 existingShift.ShiftTime != incomingShift.ShiftTime)
         {
             // Update shift in the database
             filteredShifts.Add(incomingShift);
             _logger.LogInformation($"* * * Found updated shift: {incomingShift.DetailUrl} {incomingShift.Name}");
 
-            foundShift.Name = incomingShift.Name;
-            foundShift.ShiftDate = shiftDate;
-            foundShift.ShiftTime = incomingShift.ShiftTime;
-            foundShift.Modified = DateTime.Now;
+            existingShift.Name = incomingShift.Name;
+            existingShift.ShiftDate = shiftDate;
+            existingShift.ShiftTime = incomingShift.ShiftTime;
+            existingShift.Modified = DateTime.Now;
         }
     }
-
-    /// <summary>
-    /// Gets shift id from incoming shift detailUrl (e.g. /react/position/1234)
-    /// </summary>
-    private static int GetShiftId(IncomingShift incomingShift)
-    {
-        var parsedShiftId = incomingShift.DetailUrl.Split('/').Last();
-
-        return int.TryParse(parsedShiftId, out var shiftId) ? shiftId : default;
-    }
-
-    /// <summary>
-    /// Parses incoming shift string date (e.g. 13. 5. 2023) and returns appropriate DateTime variable.
-    /// </summary>
-    /// <param name="incomingShift"></param>
-    /// <returns></returns>
-    private static DateTime GetShiftDate(IncomingShift incomingShift) =>
-        DateTime.TryParse(incomingShift.ShiftDate, CultureInfo.GetCultureInfo("cs-CZ"), out var parsedShiftDate)
-            ? parsedShiftDate
-            : default;
 }

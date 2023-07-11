@@ -1,4 +1,4 @@
-namespace ShamelessShiftGrabber;
+namespace ShamelessShiftGrabber.Macrodroid;
 
 internal class Macrodroid
 {
@@ -7,13 +7,13 @@ internal class Macrodroid
     private readonly HttpClient _client;
 
     public Macrodroid(
-        IHttpClientFactory httpClientFactory, 
+        IHttpClientFactory httpClientFactory,
         IConfiguration configuration,
         ILogger<Macrodroid> logger
     )
     {
         _logger = logger;
-        
+
         var macrodroidDeviceId = configuration.GetValue<string>("MacrodroidDeviceId");
         var macrodroidEndpoint = configuration.GetValue<string>("MacrodroidEndpoint");
 
@@ -27,7 +27,7 @@ internal class Macrodroid
         {
             const string noShiftsMessage = "* * * No shifts to send to Macrodroid";
             _logger.LogInformation(noShiftsMessage);
-            
+
             return Results.Ok(noShiftsMessage);
         }
 
@@ -35,13 +35,13 @@ internal class Macrodroid
 
         foreach (var shift in shifts)
         {
-            var isShiftSentOk = await SendSingle(shift);
+            var isShiftSentOk = await shift.Send(_baseUrl, _client, _logger);
             if (isShiftSentOk)
             {
                 successSendCount++;
             }
         }
-        
+
         var successMessage = $"* * * Successfully sent {successSendCount}/{shifts.Count} shifts to Macrodroid";
         _logger.LogInformation(successMessage);
 
@@ -51,30 +51,5 @@ internal class Macrodroid
         }
 
         return Results.BadRequest("Failed to send all shifts to Macrodroid");
-    }
-
-    private async Task<bool> SendSingle(IncomingShift incomingShift)
-    {
-        var url = $"{_baseUrl}?name={incomingShift.Name}" +
-                  $"&shiftdate={incomingShift.ShiftDate}" +
-                  $"&shifttime={incomingShift.ShiftTime}" +
-                  $"&place={incomingShift.Place}" +
-                  $"&role={incomingShift.Role}" +
-                  $"&occupancy={incomingShift.Occupancy}" +
-                  $"&detailurl={incomingShift.DetailUrl}";
-
-        var response = await _client.GetAsync(url);
-        
-        if (response.IsSuccessStatusCode)
-        {
-            return true;
-        }
-
-        var error =
-            $"Failed to send shifts. Macrodroid returned status code: {response.StatusCode}, reason: {response.ReasonPhrase}, message: {response.RequestMessage}";
-
-        _logger.LogError(error);
-
-        return false;
     }
 }
