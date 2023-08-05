@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using ShamelessShiftGrabber;
+using Microsoft.EntityFrameworkCore;
+using ShamelessShiftGrabber.Contracts;
+using ShamelessShiftGrabber.Macrodroid;
+using ShamelessShiftGrabber.Repository;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,15 +11,24 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+var triggerUrl = builder.Configuration.GetValue<string>("MacrodroidTriggerBaseUrl");
 builder.Services.AddHttpClient("macrodroid", c =>
 {
-    c.BaseAddress = new Uri("https://trigger.macrodroid.com/");
+    c.BaseAddress = new Uri(triggerUrl);
     c.DefaultRequestHeaders.Add("Accept", "application/json");
 });
 
 builder.Services.AddLogging();
+builder.Services.AddHealthChecks();
 
+builder.Services.AddTransient<ShiftRepository>();
 builder.Services.AddTransient<Macrodroid>();
+
+var connectionString = builder.Configuration.GetConnectionString("ApiDatabase");
+builder.Services.AddDbContext<ShiftsDatabaseContext>(options =>
+{
+    options.UseMySQL(connectionString!);
+});
 
 var app = builder.Build();
 
@@ -27,12 +39,14 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseHealthChecks("/health");
 app.UseHttpsRedirection();
 
 
 
 app.MapPost("/shifts", async (
-    [FromBody] ShiftRequest shiftRequest,
+    [FromBody] IncomingShiftRequest shiftRequest,
+    ShiftRepository shiftRepository,
     Macrodroid macrodroid,
     ILogger<Program> logger
 ) =>
@@ -46,7 +60,8 @@ app.MapPost("/shifts", async (
 
     if (shiftRequest.Shifts.Length > 0)
     {
-       return await macrodroid.Send(shiftRequest.Shifts);
+        var filteredShifts = await shiftRepository.Filter(shiftRequest.Shifts);
+        return await macrodroid.Send(filteredShifts);
     }
 
     return Results.Ok("No shifts were received or processed.");
