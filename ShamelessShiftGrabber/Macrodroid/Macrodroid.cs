@@ -23,7 +23,7 @@ internal class Macrodroid
         _client = httpClientFactory.CreateClient("macrodroid");
     }
 
-    public async Task<IResult> Send(ICollection<IncomingShift> shifts)
+    public async Task<IResult> Send(ICollection<ApifyShift> shifts)
     {
         if (shifts.Count == 0)
         {

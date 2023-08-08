@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ShamelessShiftGrabber.Apify;
 using ShamelessShiftGrabber.Contracts;
 using ShamelessShiftGrabber.Macrodroid;
 using ShamelessShiftGrabber.Repository;
@@ -18,9 +19,17 @@ builder.Services.AddHttpClient("macrodroid", c =>
     c.DefaultRequestHeaders.Add("Accept", "application/json");
 });
 
+var apifyUrl = builder.Configuration.GetValue<string>("ApifyBaseUrl");
+builder.Services.AddHttpClient("apify", c =>
+{
+    c.BaseAddress = new Uri(apifyUrl);
+    c.DefaultRequestHeaders.Add("Accept", "application/json");
+});
+
 builder.Services.AddLogging();
 builder.Services.AddHealthChecks();
 
+builder.Services.AddTransient<Apify>();
 builder.Services.AddTransient<ShiftRepository>();
 builder.Services.AddTransient<Macrodroid>();
 
@@ -45,22 +54,25 @@ app.UseHttpsRedirection();
 
 
 app.MapPost("/shifts", async (
-    [FromBody] IncomingShiftRequest shiftRequest,
+    [FromBody] ApifyRun incomingRun,
+    Apify apify,
     ShiftRepository shiftRepository,
     Macrodroid macrodroid,
     ILogger<Program> logger
 ) =>
 {
-    if (shiftRequest == null || shiftRequest.Shifts == null)
+    if (incomingRun == null || string.IsNullOrWhiteSpace( incomingRun.RunId))
     {
-        return Results.BadRequest("Shifts are required");
+        return Results.BadRequest("Apify actor run id is required");
     }
 
-    logger.LogInformation($"Received shifts: {shiftRequest.Shifts.Length}");
+    var shifts = await apify.GetScrapedShifts(incomingRun.RunId);
 
-    if (shiftRequest.Shifts.Length > 0)
+    logger.LogInformation($"Received shifts: {shifts.Count}");
+
+    if (shifts.Count> 0)
     {
-        var filteredShifts = await shiftRepository.Filter(shiftRequest.Shifts);
+        var filteredShifts = await shiftRepository.Filter(shifts);
         return await macrodroid.Send(filteredShifts);
     }
 
