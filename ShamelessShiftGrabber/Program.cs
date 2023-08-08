@@ -4,6 +4,7 @@ using ShamelessShiftGrabber.Apify;
 using ShamelessShiftGrabber.Contracts;
 using ShamelessShiftGrabber.Macrodroid;
 using ShamelessShiftGrabber.Repository;
+using System;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -51,6 +52,16 @@ if (app.Environment.IsDevelopment())
 app.UseHealthChecks("/health");
 app.UseHttpsRedirection();
 
+
+// Migrate latest database changes during startup
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider
+        .GetRequiredService<ShiftsDatabaseContext>();
+
+    // Here is the migration executed
+    dbContext.Database.Migrate();
+}
 
 
 app.MapPost("/shifts", async (
