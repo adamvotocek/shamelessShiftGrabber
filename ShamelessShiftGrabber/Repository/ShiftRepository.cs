@@ -17,9 +17,9 @@ internal class ShiftRepository
         _shiftsDatabaseContext = shiftsDatabaseContext;
     }
 
-    public async Task<ICollection<ApifyShift>> Filter(List<ApifyShift> shifts)
+    public async Task<ICollection<ScrapedShift>> Filter(List<ScrapedShift> shifts)
     {
-        var filteredShifts = new List<ApifyShift>();
+        var filteredShifts = new List<ScrapedShift>();
 
         var existingShifts = await _shiftsDatabaseContext.Shifts
             .Where(s => s.ShiftDate > DateTime.Now)
@@ -40,22 +40,22 @@ internal class ShiftRepository
     }
 
     private async Task ProcessShift(
-        ApifyShift apifyShift,
+        ScrapedShift scrapedShift,
         IEnumerable<Shift> existingShifts,
-        ICollection<ApifyShift> filteredShifts
+        ICollection<ScrapedShift> filteredShifts
     )
     {
-        apifyShift.TryFillIdAndValidDate();
+        scrapedShift.TryFillIdAndValidDate();
 
-        if (!apifyShift.IsValid())
+        if (!scrapedShift.IsValid())
         {
             _logger.LogWarning(
-                $"Incoming shift is not valid. Unable to parse Id from: {apifyShift.DetailUrl} or ValidDate from {apifyShift.ShiftDate}"
+                $"Incoming shift is not valid. Unable to parse Id from: {scrapedShift.DetailUrl} or ValidDate from {scrapedShift.ShiftDate}"
             );
             return;
         }
 
-        await InsertOrUpdate(apifyShift, existingShifts, filteredShifts);
+        await InsertOrUpdate(scrapedShift, existingShifts, filteredShifts);
     }
 
     /// <summary>
@@ -63,43 +63,43 @@ internal class ShiftRepository
     /// Adds to filteredShifts if shift is new or has been updated.
     /// </summary>
     private async Task InsertOrUpdate(
-        ApifyShift apifyShift,
+        ScrapedShift scrapedShift,
         IEnumerable<Shift> existingShifts,
-        ICollection<ApifyShift> filteredShifts
+        ICollection<ScrapedShift> filteredShifts
     )
     {
-        var existingShift = existingShifts.FirstOrDefault(s => s.Id == apifyShift.Id);
+        var existingShift = existingShifts.FirstOrDefault(s => s.Id == scrapedShift.Id);
 
         if (existingShift == null)
         {
-            AddToFilteredShifts(apifyShift, filteredShifts, true);
+            AddToFilteredShifts(scrapedShift, filteredShifts, true);
 
             // Insert new shift into database
             await _shiftsDatabaseContext.Shifts.AddAsync(
-                apifyShift.CreateShift()
+                scrapedShift.CreateShift()
             );
         }
-        else if (existingShift.IsDifferentFrom(apifyShift))
+        else if (existingShift.IsDifferentFrom(scrapedShift))
         {
             // Update existing shift in the database
-            AddToFilteredShifts(apifyShift, filteredShifts, false);
+            AddToFilteredShifts(scrapedShift, filteredShifts, false);
 
-            existingShift.UpdateFrom(apifyShift);
+            existingShift.UpdateFrom(scrapedShift);
         }
     }
 
     private void AddToFilteredShifts(
-        ApifyShift apifyShift, 
-        ICollection<ApifyShift> filteredShifts, 
+        ScrapedShift scrapedShift,
+        ICollection<ScrapedShift> filteredShifts,
         bool isNewShift
     )
     {
-        filteredShifts.Add(apifyShift);
+        filteredShifts.Add(scrapedShift);
 
         var msg = isNewShift
             ? "Found new shift"
             : "Found updated shift";
 
-        _logger.LogInformation($"* * * {msg}: {apifyShift.DetailUrl} {apifyShift.Name}");
+        _logger.LogInformation($"* * * {msg}: {scrapedShift.DetailUrl} {scrapedShift.Name}");
     }
 }

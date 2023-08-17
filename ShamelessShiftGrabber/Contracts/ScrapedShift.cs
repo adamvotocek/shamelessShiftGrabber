@@ -1,9 +1,8 @@
 using System.Globalization;
-using System.Text.Json.Serialization;
 
 namespace ShamelessShiftGrabber.Contracts;
 
-public class ApifyShift
+public class ScrapedShift
 {
     public string Name { get; set; }
 
@@ -18,7 +17,7 @@ public class ApifyShift
     public string Occupancy { get; set; }
 
     public string DetailUrl { get; set; }
-    
+
     public int Id { get; private set; }
 
     public DateTime ValidDate { get; private set; }
