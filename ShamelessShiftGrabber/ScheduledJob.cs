@@ -1,4 +1,5 @@
 ﻿using Quartz;
+using ShamelessShiftGrabber.Contracts;
 using ShamelessShiftGrabber.Repository;
 using ShamelessShiftGrabber.Scrape;
 
@@ -28,6 +29,22 @@ internal class ScheduledJob : IJob
         _logger.LogInformation("= = = Starting scheduled job");
 
         var availableShifts = await _scrapingService.ScrapeShifts();
+
+        // Note: for debugging purposes:
+        //var availableShifts = new List<ScrapedShift>
+        //{
+        //    new ScrapedShift
+        //    {
+        //        Name = "pouze test změna",
+        //        DetailUrl = "/react/position/1",
+        //        ShiftDate = "30. 8. 2023",
+        //        ShiftTime = "5:00 PM - 10:00 PM",
+        //        Place = "blablab",
+        //        Role = "blablab",
+        //        Occupancy = "0/1"
+                
+        //    }
+        //};
 
         _logger.LogInformation($"Received shifts: {availableShifts.Count}");
 

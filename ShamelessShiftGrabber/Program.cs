@@ -28,11 +28,11 @@ services.AddTransient<ScrapingService>();
 services.AddTransient<ShiftRepository>();
 services.AddTransient<Macrodroid>();
 
-var connectionString = builder.Configuration.GetConnectionString("ApiDatabase");
-services.AddDbContext<ShiftsDatabaseContext>(options =>
-{
-    options.UseMySQL(connectionString!);
-});
+//var connectionString = builder.Configuration.GetConnectionString("ApiDatabase");
+services.AddDbContext<ShiftsDatabaseContext>();
+//{
+//    options.UseSqlite()
+//});
 
 var cronExpression = builder.Configuration.GetValue<string>("QuartzCronExpression");
 services.AddQuartz(q =>
