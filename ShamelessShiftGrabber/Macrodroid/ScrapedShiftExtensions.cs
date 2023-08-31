@@ -2,21 +2,21 @@ using ShamelessShiftGrabber.Contracts;
 
 namespace ShamelessShiftGrabber.Macrodroid;
 
-internal static class IncomingShiftExtensions
+internal static class ScrapedShiftExtensions
 {
     public static async Task<bool> Send(
-        this IncomingShift incomingShift, 
+        this ScrapedShift shift,
         string baseUrl,
         HttpClient client,
         ILogger logger)
     {
-        var url = $"{baseUrl}?name={incomingShift.Name}" +
-                  $"&shiftdate={incomingShift.ShiftDate}" +
-                  $"&shifttime={incomingShift.ShiftTime}" +
-                  $"&place={incomingShift.Place}" +
-                  $"&role={incomingShift.Role}" +
-                  $"&occupancy={incomingShift.Occupancy}" +
-                  $"&detailurl={incomingShift.DetailUrl}";
+        var url = $"{baseUrl}?name={shift.Name}" +
+                  $"&shiftdate={shift.ShiftDate}" +
+                  $"&shifttime={shift.ShiftTime}" +
+                  $"&place={shift.Place}" +
+                  $"&role={shift.Role}" +
+                  $"&occupancy={shift.Occupancy}" +
+                  $"&detailurl={shift.DetailUrl}";
 
         var response = await client.GetAsync(url);
 

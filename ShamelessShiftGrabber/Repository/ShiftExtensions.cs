@@ -4,16 +4,16 @@ namespace ShamelessShiftGrabber.Repository;
 
 internal static class ShiftExtensions
 {
-    public static bool IsDifferentFrom(this Shift shift, IncomingShift incomingShift)
-        => shift.Name != incomingShift.Name ||
-           shift.ShiftDate.Date != incomingShift.ValidDate ||
-           shift.ShiftTime != incomingShift.ShiftTime;
+    public static bool IsDifferentFrom(this Shift shift, ScrapedShift scrapedShift)
+        => shift.Name != scrapedShift.Name ||
+           shift.ShiftDate.Date != scrapedShift.ValidDate ||
+           shift.ShiftTime != scrapedShift.ShiftTime;
 
-    public static void UpdateFrom(this Shift shift, IncomingShift incomingShift)
+    public static void UpdateFrom(this Shift shift, ScrapedShift scrapedShift)
     {
-        shift.Name = incomingShift.Name;
-        shift.ShiftDate = incomingShift.ValidDate;
-        shift.ShiftTime = incomingShift.ShiftTime;
+        shift.Name = scrapedShift.Name;
+        shift.ShiftDate = scrapedShift.ValidDate;
+        shift.ShiftTime = scrapedShift.ShiftTime;
         shift.Modified = DateTime.Now;
     }
 }

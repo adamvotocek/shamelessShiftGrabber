@@ -1,70 +1,81 @@
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ShamelessShiftGrabber.Contracts;
 using ShamelessShiftGrabber.Macrodroid;
 using ShamelessShiftGrabber.Repository;
+using Quartz;
+using ShamelessShiftGrabber;
+using ShamelessShiftGrabber.Scrape;
 
 var builder = WebApplication.CreateBuilder(args);
+var services = builder.Services;
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+//services.AddEndpointsApiExplorer();
+//services.AddSwaggerGen();
 
 var triggerUrl = builder.Configuration.GetValue<string>("MacrodroidTriggerBaseUrl");
-builder.Services.AddHttpClient("macrodroid", c =>
+services.AddHttpClient("macrodroid", c =>
 {
     c.BaseAddress = new Uri(triggerUrl);
     c.DefaultRequestHeaders.Add("Accept", "application/json");
 });
 
-builder.Services.AddLogging();
-builder.Services.AddHealthChecks();
+services.AddLogging();
+//services.AddHealthChecks();
 
-builder.Services.AddTransient<ShiftRepository>();
-builder.Services.AddTransient<Macrodroid>();
+services.AddSingleton<ScrapingConfiguration>();
+services.AddTransient<ScrapingService>();
+services.AddTransient<ShiftRepository>();
+services.AddTransient<Macrodroid>();
 
-var connectionString = builder.Configuration.GetConnectionString("ApiDatabase");
-builder.Services.AddDbContext<ShiftsDatabaseContext>(options =>
+//var connectionString = builder.Configuration.GetConnectionString("ApiDatabase");
+services.AddDbContext<ShiftsDatabaseContext>();
+//{
+//    options.UseSqlite()
+//});
+
+var cronExpression = builder.Configuration.GetValue<string>("QuartzCronExpression");
+services.AddQuartz(q =>
 {
-    options.UseMySQL(connectionString!);
+    q.UseMicrosoftDependencyInjectionJobFactory();
+
+    var jobKey = new JobKey(nameof(ScheduledJob));
+    q.AddJob<ScheduledJob>(opts => opts.WithIdentity(jobKey));
+
+    q.AddTrigger(opts => opts
+        .ForJob(jobKey)
+        .WithIdentity($"{jobKey}-trigger")
+        .WithCronSchedule(cronExpression!)
+    );
 });
+services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
+
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+//if (app.Environment.IsDevelopment())
+//{
+//    app.UseSwagger();
+//    app.UseSwaggerUI();
+//}
+
+//app.UseHealthChecks("/health");
+//app.UseHttpsRedirection();
+
+
+// Migrate latest database changes during startup
+using (var scope = app.Services.CreateScope())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    var dbContext = scope.ServiceProvider
+        .GetRequiredService<ShiftsDatabaseContext>();
+
+    // Here is the migration executed
+    dbContext.Database.Migrate();
 }
 
-app.UseHealthChecks("/health");
-app.UseHttpsRedirection();
-
-
-
-app.MapPost("/shifts", async (
-    [FromBody] IncomingShiftRequest shiftRequest,
-    ShiftRepository shiftRepository,
-    Macrodroid macrodroid,
-    ILogger<Program> logger
-) =>
-{
-    if (shiftRequest == null || shiftRequest.Shifts == null)
-    {
-        return Results.BadRequest("Shifts are required");
-    }
-
-    logger.LogInformation($"Received shifts: {shiftRequest.Shifts.Length}");
-
-    if (shiftRequest.Shifts.Length > 0)
-    {
-        var filteredShifts = await shiftRepository.Filter(shiftRequest.Shifts);
-        return await macrodroid.Send(filteredShifts);
-    }
-
-    return Results.Ok("No shifts were received or processed.");
-});
+// For testing purposes:
+//var test = new ScrapingService();
+//await test.ScrapeShifts();
 
 app.Run();

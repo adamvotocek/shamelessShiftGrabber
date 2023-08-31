@@ -2,17 +2,24 @@ using System.Globalization;
 
 namespace ShamelessShiftGrabber.Contracts;
 
-internal class IncomingShift
+public class ScrapedShift
 {
     public string Name { get; set; }
+
     public string ShiftDate { get; set; }
+
     public string ShiftTime { get; set; }
+
     public string Place { get; set; }
+
     public string Role { get; set; }
+
     public string Occupancy { get; set; }
+
     public string DetailUrl { get; set; }
 
     public int Id { get; private set; }
+
     public DateTime ValidDate { get; private set; }
 
     /// <summary>

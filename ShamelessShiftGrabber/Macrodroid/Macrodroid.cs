@@ -23,16 +23,8 @@ internal class Macrodroid
         _client = httpClientFactory.CreateClient("macrodroid");
     }
 
-    public async Task<IResult> Send(ICollection<IncomingShift> shifts)
+    public async Task<bool> Send(ICollection<ScrapedShift> shifts)
     {
-        if (shifts.Count == 0)
-        {
-            const string noShiftsMessage = "* * * No shifts to send to Macrodroid";
-            _logger.LogInformation(noShiftsMessage);
-
-            return Results.Ok(noShiftsMessage);
-        }
-
         var successSendCount = 0;
 
         foreach (var shift in shifts)
@@ -44,14 +36,8 @@ internal class Macrodroid
             }
         }
 
-        var successMessage = $"* * * Successfully sent {successSendCount}/{shifts.Count} shifts to Macrodroid";
-        _logger.LogInformation(successMessage);
+        _logger.LogInformation($"* * * Successfully sent {successSendCount}/{shifts.Count} shifts to Macrodroid");
 
-        if (successSendCount > 0)
-        {
-            return Results.Ok(successMessage);
-        }
-
-        return Results.BadRequest("Failed to send all shifts to Macrodroid");
+        return successSendCount > 0;
     }
 }
