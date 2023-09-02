@@ -19,12 +19,16 @@ internal class ScrapingService
         _logger.LogInformation("= = Scraping starting...");
 
         using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(
+            new BrowserTypeLaunchOptions
+            {
+                Headless = _scrapingConfiguration.IsHeadless,
+                Timeout = _scrapingConfiguration.Timeout,
+                SlowMo = _scrapingConfiguration.SlowMo
+            }
+        );
 
         var page = await browser.NewPageAsync();
-
-        //var title = await page.TitleAsync();
-        //_logger.LogInformation(title);
 
         await Login(page);
 
@@ -33,6 +37,8 @@ internal class ScrapingService
         await page.WaitForTimeoutAsync(5000);
 
         var shifts = await GetAvailableShifts(page);
+
+        shifts = shifts.DistinctBy(x => x.DetailUrl).ToList();
 
         _logger.LogInformation($"= = Scraping done, found {shifts.Count} shift(s).");
 
