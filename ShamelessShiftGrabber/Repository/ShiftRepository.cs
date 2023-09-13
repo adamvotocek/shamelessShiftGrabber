@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using ShamelessShiftGrabber.Contracts;
+using ShamelessShiftGrabber.Scrape;
 
 namespace ShamelessShiftGrabber.Repository;
 
@@ -19,6 +19,8 @@ internal class ShiftRepository
 
     public async Task<ICollection<ScrapedShift>> Filter(List<ScrapedShift> shifts)
     {
+        _logger.LogDebug($"-- Before DB filtering: {shifts.Count} shifts");
+
         var filteredShifts = new List<ScrapedShift>();
 
         var existingShifts = await _shiftsDatabaseContext.Shifts
@@ -32,10 +34,11 @@ internal class ShiftRepository
 
         if (filteredShifts.Count > 0)
         {
-            _logger.LogInformation($"* * * Inserting/updating {filteredShifts.Count} shifts in the database.");
+            _logger.LogDebug($"* * * Inserting/updating {filteredShifts.Count} shifts in the database.");
             await _shiftsDatabaseContext.SaveChangesAsync();
         }
 
+        _logger.LogDebug($"-- After DB filtering: {filteredShifts.Count} shifts");
         return filteredShifts;
     }
 
@@ -45,12 +48,12 @@ internal class ShiftRepository
         ICollection<ScrapedShift> filteredShifts
     )
     {
-        scrapedShift.TryFillIdAndValidDate();
+        scrapedShift.TryFillId();
 
         if (!scrapedShift.IsValid())
         {
             _logger.LogWarning(
-                $"Incoming shift is not valid. Unable to parse Id from: {scrapedShift.DetailUrl} or ValidDate from {scrapedShift.ShiftDate}"
+                $"Incoming shift is not valid. Unable to parse Id from: {scrapedShift.DetailUrl} or ShiftDate from {scrapedShift.ShiftDate}"
             );
             return;
         }
@@ -100,6 +103,6 @@ internal class ShiftRepository
             ? "Found new shift"
             : "Found updated shift";
 
-        _logger.LogInformation($"* * * {msg}: {scrapedShift.DetailUrl} {scrapedShift.Name}");
+        _logger.LogDebug($"* * * {msg}: {scrapedShift.DetailUrl} {scrapedShift.Name}");
     }
 }

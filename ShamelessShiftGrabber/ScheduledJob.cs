@@ -1,5 +1,4 @@
 ﻿using Quartz;
-using ShamelessShiftGrabber.Contracts;
 using ShamelessShiftGrabber.Repository;
 using ShamelessShiftGrabber.Scrape;
 
@@ -25,7 +24,7 @@ internal class ScheduledJob : IJob
 
     public async Task Execute(IJobExecutionContext context)
     {
-        _logger.LogInformation("__________________________________________________________________________");
+        _logger.LogDebug("__________________________________________________________________________");
         _logger.LogInformation("= = = Starting scheduled job");
 
         var availableShifts = await _scrapingService.ScrapeShifts();
@@ -46,8 +45,6 @@ internal class ScheduledJob : IJob
         //    }
         //};
 
-        _logger.LogInformation($"Received shifts: {availableShifts.Count}");
-
         if (availableShifts.Count <= 0)
         {
             LogFinishedJob();
@@ -58,14 +55,18 @@ internal class ScheduledJob : IJob
 
         if (filteredShifts.Count == 0)
         {
-            _logger.LogInformation("No shifts found to send to macrodroid");
+            _logger.LogDebug("No shifts to be sent to macrodroid");
             LogFinishedJob();
             return;
         }
 
         var macrodroidResult = await _macrodroid.Send(filteredShifts);
 
-        _logger.LogInformation("Macrodroid finished with: " + (macrodroidResult ? "success" : "failure"));
+        if (macrodroidResult)
+        {
+            _logger.LogInformation($"Successfully sent {filteredShifts.Count} shifts to macrodroid");
+        }
+
         LogFinishedJob();
     }
 
