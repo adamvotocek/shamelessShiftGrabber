@@ -1,22 +1,45 @@
+using System.Globalization;
+using Microsoft.Extensions.Logging;
+using Microsoft.OpenApi.Validations;
 using Microsoft.Playwright;
-using ShamelessShiftGrabber.Contracts;
+using ShamelessShiftGrabber.GoogleSheets;
 
 namespace ShamelessShiftGrabber.Scrape;
 
 internal class ScrapingService
 {
     private readonly ScrapingConfiguration _scrapingConfiguration;
+    private readonly GoogleSheetsConditionService _googleSheetsConditionService;
     private readonly ILogger<ScrapingService> _logger;
+    private readonly AppInsightsService _appInsightsService;
 
-    public ScrapingService(ScrapingConfiguration scrapingConfiguration, ILogger<ScrapingService> logger)
+    public ScrapingService(
+        ScrapingConfiguration scrapingConfiguration,
+        GoogleSheetsConditionService googleSheetsConditionService,
+        ILogger<ScrapingService> logger, 
+        AppInsightsService appInsightsService
+    )
     {
         _scrapingConfiguration = scrapingConfiguration;
+        _googleSheetsConditionService = googleSheetsConditionService;
         _logger = logger;
+        _appInsightsService = appInsightsService;
     }
 
     public async Task<List<ScrapedShift>> ScrapeShifts()
     {
-        _logger.LogInformation("= = Scraping starting...");
+        _logger.LogDebug("= = Scraping starting...");
+
+        var sheetInformation = _googleSheetsConditionService.GetSheetInformation();
+
+        if (sheetInformation == null)
+        {
+            const string message = "Failed to get Google sheets data";
+            _logger.LogError(message);
+            _appInsightsService.TrackError(message);
+
+            return new List<ScrapedShift>();
+        }   
 
         using var playwright = await Playwright.CreateAsync();
         await using var browser = await playwright.Chromium.LaunchAsync(
@@ -36,37 +59,31 @@ internal class ScrapingService
 
         await page.WaitForTimeoutAsync(5000);
 
-        var shifts = await GetAvailableShifts(page);
+        var shifts = await GetAvailableShifts(page, sheetInformation);
+        _logger.LogDebug($"Scraped {shifts.Count} shift(s).");
 
         shifts = shifts.DistinctBy(x => x.DetailUrl).ToList();
 
-        _logger.LogInformation($"= = Scraping done, found {shifts.Count} shift(s).");
+        _logger.LogDebug($"After duplicates removed: {shifts.Count} shift(s).");
+        _logger.LogInformation($"Returning {shifts.Count} shift(s) from scraping.");
+        _logger.LogDebug("= = Scraping done.");
 
         return shifts;
     }
 
-    private async Task<List<ScrapedShift>> GetAvailableShifts(IPage page)
+    private async Task<List<ScrapedShift>> GetAvailableShifts(IPage page, SheetInformation sheetInformation)
     {
-        const string condition =
-            "tr.MuiTableRow-root:has-text(\"bonus\"), tr.MuiTableRow-root:has-text(\"(1 h\"), " +
-            "tr.MuiTableRow-root:has-text(\"(2 h\"), tr.MuiTableRow-root:has-text(\"(3 h\"), " +
-            "tr.MuiTableRow-root:has-text(\"(4 h\"), tr.MuiTableRow-root:has-text(\"(5 h\")";
-        const string conditionIds =
-            "tr.MuiTableRow-root:has-text(\"bonus\") + tr td a, tr.MuiTableRow-root:has-text(\"(1 h\") + tr td a, " +
-            "tr.MuiTableRow-root:has-text(\"(2 h\") + tr td a, tr.MuiTableRow-root:has-text(\"(3 h\") + tr td a, " +
-            "tr.MuiTableRow-root:has-text(\"(4 h\") + tr td a, tr.MuiTableRow-root:has-text(\"(5 h\") + tr td a";
-
-        var rows = page.Locator(condition);
-        var rowsIds = page.Locator(conditionIds);
+        var rows = page.Locator(sheetInformation.Condition);
+        var rowsIds = page.Locator(sheetInformation.ConditionIds);
 
         var shifts = new List<ScrapedShift>();
 
         var rowsCount = await rows.CountAsync();
-        _logger.LogInformation($"Rows count: {rowsCount}");
+        _logger.LogDebug($"Rows found using css conditions count: {rowsCount}");
 
         for (var index = 0; index < rowsCount; index++)
         {
-            await TryAddShift(rows, index, rowsIds, shifts);
+            await TryAddShift(rows, index, rowsIds, shifts, sheetInformation.AvailableDates);
         }
 
         return shifts;
@@ -75,13 +92,13 @@ internal class ScrapingService
     private async Task MoveToShiftsOverview(IPage page)
     {
         await page.WaitForURLAsync("https://shameless.sinch.cz/react/dashboard/incoming");
-        _logger.LogInformation(page.Url);
+        _logger.LogDebug(page.Url);
 
         await page.ClickAsync("a[href=\"/react/position\"]");
         await page.WaitForLoadStateAsync();
 
         await page.WaitForURLAsync("https://shameless.sinch.cz/react/position");
-        _logger.LogInformation(page.Url);
+        _logger.LogDebug(page.Url);
         await page.WaitForLoadStateAsync();
     }
 
@@ -95,7 +112,13 @@ internal class ScrapingService
         await page.WaitForLoadStateAsync();
     }
 
-    private async Task TryAddShift(ILocator rows, int index, ILocator rowsIds, ICollection<ScrapedShift> shifts)
+    private async Task TryAddShift(
+        ILocator rows, 
+        int index, 
+        ILocator rowsIds, 
+        ICollection<ScrapedShift> shifts,
+        List<DateTime> availableDates
+    )
     {
         var row = rows.Nth(index);
         var rowId = rowsIds.Nth(index);
@@ -116,12 +139,18 @@ internal class ScrapingService
             var unavailableLoc = cells.Nth(6).Locator("svg[title*=\"Nespl\"]");
             var unavailableCount = await unavailableLoc.CountAsync();
 
-            if (unavailableCount < 1)
+            var isUnavailable = unavailableCount > 0;
+
+            if (isUnavailable)
             {
+                _logger.LogDebug($"Scraped shift is unavailable: {href}");
+            }
+            else
+            {
+
                 var singleShift = new ScrapedShift
                 {
                     Name = await nameLoc.InnerTextAsync(),
-                    ShiftDate = await dateLoc.InnerTextAsync(),
                     ShiftTime = await timeLoc.InnerTextAsync(),
                     Place = await placeLoc.InnerTextAsync(),
                     Role = await roleLoc.InnerTextAsync(),
@@ -129,12 +158,37 @@ internal class ScrapingService
                     DetailUrl = href
                 };
 
-                shifts.Add(singleShift);
+                var scrapedDate = await dateLoc.InnerTextAsync();
+                singleShift.TryFillShiftDate(scrapedDate);
+
+                AddScrapedShift(shifts, availableDates, singleShift);
             }
         }
         catch (Exception ex)
         {
             _logger.LogWarning($"***Could not parse row. Error: {ex}");
         }
+    }
+
+    private void AddScrapedShift(ICollection<ScrapedShift> shifts, List<DateTime> availableDates, ScrapedShift singleShift)
+    {
+        if (!availableDates.Any())
+        {
+            _logger.LogDebug($"Adding scraped shift: {singleShift.ShiftDate}");
+ 
+            shifts.Add(singleShift);
+            return;
+        }
+
+        var isShiftDateInAvailableDates = availableDates.Contains(singleShift.ShiftDate);
+        if (isShiftDateInAvailableDates)
+        {
+            _logger.LogDebug($"Shift date is in available dates: {singleShift.ShiftDate}. Adding scraped shift.");
+            shifts.Add(singleShift);
+
+            return;
+        }
+
+        _logger.LogDebug($"Shift date is not in available dates: {singleShift.ShiftDate}. Skipping shift.");
     }
 }

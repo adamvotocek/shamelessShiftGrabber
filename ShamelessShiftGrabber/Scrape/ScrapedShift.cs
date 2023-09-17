@@ -1,12 +1,10 @@
 using System.Globalization;
 
-namespace ShamelessShiftGrabber.Contracts;
+namespace ShamelessShiftGrabber.Scrape;
 
 public class ScrapedShift
 {
     public string Name { get; set; }
-
-    public string ShiftDate { get; set; }
 
     public string ShiftTime { get; set; }
 
@@ -20,21 +18,24 @@ public class ScrapedShift
 
     public int Id { get; private set; }
 
-    public DateTime ValidDate { get; private set; }
+    public DateTime ShiftDate { get; private set; }
 
     /// <summary>
-    /// Gets Id and ValidDate from incoming shift.
+    /// Sets Id from scraped shift.
     /// (Retrieves Id from input DetailUrl (e.g. /react/position/1234) and parses input string ShiftDate (e.g. 13. 5. 2023) into DateTime.)
     /// </summary>
-    public void TryFillIdAndValidDate()
+    public void TryFillId()
     {
         var parsedShiftId = DetailUrl.Split('/').Last();
         Id = int.TryParse(parsedShiftId, out var shiftId) ? shiftId : default;
-
-        ValidDate = DateTime.TryParse(ShiftDate, CultureInfo.GetCultureInfo("cs-CZ"), out var parsedShiftDate)
+    }
+    
+    public void TryFillShiftDate(string inputDate)
+    {
+        ShiftDate = DateTime.TryParse(inputDate, CultureInfo.GetCultureInfo("cs-CZ"), out var parsedShiftDate)
             ? parsedShiftDate
             : default;
     }
 
-    public bool IsValid() => Id != default && ValidDate != default;
+    public bool IsValid() => Id != default && ShiftDate != default;
 }

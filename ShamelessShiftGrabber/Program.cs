@@ -1,17 +1,17 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using ShamelessShiftGrabber.Macrodroid;
 using ShamelessShiftGrabber.Repository;
 using Quartz;
 using ShamelessShiftGrabber;
 using ShamelessShiftGrabber.Scrape;
+using Serilog;
+using ShamelessShiftGrabber.GoogleSheets;
+using Microsoft.ApplicationInsights;
 
 var builder = WebApplication.CreateBuilder(args);
 var services = builder.Services;
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-//services.AddEndpointsApiExplorer();
-//services.AddSwaggerGen();
 
 var triggerUrl = builder.Configuration.GetValue<string>("MacrodroidTriggerBaseUrl");
 services.AddHttpClient("macrodroid", c =>
@@ -21,24 +21,33 @@ services.AddHttpClient("macrodroid", c =>
 });
 
 services.AddLogging();
-//services.AddHealthChecks();
 
 services.AddSingleton<ScrapingConfiguration>();
+services.AddSingleton<GoogleCredentialsConfiguration>();
+services.AddSingleton<GoogleSheetConfiguration>();
+services.AddSingleton<GoogleSheets>();
+
+services.AddTransient<GoogleSheetsConditionService>();
 services.AddTransient<ScrapingService>();
 services.AddTransient<ShiftRepository>();
 services.AddTransient<Macrodroid>();
 
-//var connectionString = builder.Configuration.GetConnectionString("ApiDatabase");
 services.AddDbContext<ShiftsDatabaseContext>();
-//{
-//    options.UseSqlite()
-//});
+
+services.TryAddSingleton<TelemetryClient>();
+services.AddSingleton<AppInsightsService>();
+services.AddApplicationInsightsTelemetry(builder.Configuration);
+
+builder.Host.UseSerilog(
+    (context, loggerConfiguration) =>
+    {
+        loggerConfiguration.ReadFrom.Configuration(context.Configuration);
+    }
+);
 
 var cronExpression = builder.Configuration.GetValue<string>("QuartzCronExpression");
 services.AddQuartz(q =>
 {
-    q.UseMicrosoftDependencyInjectionJobFactory();
-
     var jobKey = new JobKey(nameof(ScheduledJob));
     q.AddJob<ScheduledJob>(opts => opts.WithIdentity(jobKey));
 
@@ -50,19 +59,7 @@ services.AddQuartz(q =>
 });
 services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
-
 var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-//if (app.Environment.IsDevelopment())
-//{
-//    app.UseSwagger();
-//    app.UseSwaggerUI();
-//}
-
-//app.UseHealthChecks("/health");
-//app.UseHttpsRedirection();
-
 
 // Migrate latest database changes during startup
 using (var scope = app.Services.CreateScope())
