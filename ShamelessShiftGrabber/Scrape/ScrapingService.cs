@@ -60,7 +60,7 @@ internal class ScrapingService
         await page.WaitForTimeoutAsync(5000);
 
         var shifts = await GetAvailableShifts(page, sheetInformation);
-        _logger.LogDebug($"Scraped {shifts.Count} shift(s).");
+        _logger.LogDebug($"Scraping total result: {shifts.Count} shift(s).");
 
         shifts = shifts.DistinctBy(x => x.DetailUrl).ToList();
 
@@ -174,7 +174,7 @@ internal class ScrapingService
     {
         if (!availableDates.Any())
         {
-            _logger.LogDebug($"Adding scraped shift: {singleShift.ShiftDate}");
+            _logger.LogDebug($"Adding scraped shift: {singleShift.DetailUrl} -  {singleShift.ShiftDate}");
  
             shifts.Add(singleShift);
             return;
@@ -183,12 +183,12 @@ internal class ScrapingService
         var isShiftDateInAvailableDates = availableDates.Contains(singleShift.ShiftDate);
         if (isShiftDateInAvailableDates)
         {
-            _logger.LogDebug($"Shift date is in available dates: {singleShift.ShiftDate}. Adding scraped shift.");
+            _logger.LogDebug($"Shift date for {singleShift.DetailUrl} is in available dates: {singleShift.ShiftDate}. Adding scraped shift.");
             shifts.Add(singleShift);
 
             return;
         }
 
-        _logger.LogDebug($"Shift date is not in available dates: {singleShift.ShiftDate}. Skipping shift.");
+        _logger.LogDebug($"Shift date for {singleShift.DetailUrl} is not in available dates: {singleShift.ShiftDate}. Skipping shift.");
     }
 }

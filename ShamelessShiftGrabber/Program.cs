@@ -61,14 +61,22 @@ services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
 var app = builder.Build();
 
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+
 // Migrate latest database changes during startup
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider
         .GetRequiredService<ShiftsDatabaseContext>();
 
+    logger.LogDebug("Migrating database...");
     // Here is the migration executed
     dbContext.Database.Migrate();
+
+    var shiftRepository = scope.ServiceProvider
+        .GetRequiredService<ShiftRepository>();
+
+    await shiftRepository.ReadAndLogAllTheRowsFromTheShiftsTable();
 }
 
 // For testing purposes:
