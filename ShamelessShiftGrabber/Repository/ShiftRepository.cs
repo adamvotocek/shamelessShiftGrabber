@@ -17,6 +17,16 @@ internal class ShiftRepository
         _shiftsDatabaseContext = shiftsDatabaseContext;
     }
 
+    public async Task ReadAndLogAllTheRowsFromTheShiftsTable()
+    {
+        _logger.LogDebug(".......Reading all the rows from the shifts table......");
+
+        await _shiftsDatabaseContext.Shifts
+            .AsNoTracking()
+            .ForEachAsync(s => _logger.LogDebug($"Shift: {s.Id} - {s.Name}"));
+        _logger.LogDebug(".......................................................");
+    }
+
     public async Task<ICollection<ScrapedShift>> Filter(List<ScrapedShift> shifts)
     {
         _logger.LogDebug($"-- Before DB filtering: {shifts.Count} shifts");
@@ -50,6 +60,8 @@ internal class ShiftRepository
     {
         scrapedShift.TryFillId();
 
+        _logger.LogDebug($"Parsed from url and acquired shift ID: {scrapedShift.Id}");
+
         if (!scrapedShift.IsValid())
         {
             _logger.LogWarning(
@@ -72,37 +84,35 @@ internal class ShiftRepository
     )
     {
         var existingShift = existingShifts.FirstOrDefault(s => s.Id == scrapedShift.Id);
-
+        
         if (existingShift == null)
         {
-            AddToFilteredShifts(scrapedShift, filteredShifts, true);
+            _logger.LogDebug($"Has not found existing shift with ID: {scrapedShift.Id}. Inserting...");
+
+            filteredShifts.Add(scrapedShift);
 
             // Insert new shift into database
             await _shiftsDatabaseContext.Shifts.AddAsync(
                 scrapedShift.CreateShift()
             );
         }
-        else if (existingShift.IsDifferentFrom(scrapedShift))
+        else
         {
-            // Update existing shift in the database
-            AddToFilteredShifts(scrapedShift, filteredShifts, false);
+            _logger.LogDebug($"Found existing shift with ID {existingShift.Id} in the database.");
 
-            existingShift.UpdateFrom(scrapedShift);
+            if (existingShift.IsDifferentFrom(scrapedShift))
+            {
+                _logger.LogDebug($"Existing shift with ID {existingShift.Id} has changed. Updating...");
+
+                filteredShifts.Add(scrapedShift);
+
+                // Update existing shift in the database
+                existingShift.UpdateFrom(scrapedShift);
+            }
+            else
+            {
+                _logger.LogDebug($"Existing shift with ID {existingShift.Id} has not changed. Skipping.");
+            }
         }
-    }
-
-    private void AddToFilteredShifts(
-        ScrapedShift scrapedShift,
-        ICollection<ScrapedShift> filteredShifts,
-        bool isNewShift
-    )
-    {
-        filteredShifts.Add(scrapedShift);
-
-        var msg = isNewShift
-            ? "Found new shift"
-            : "Found updated shift";
-
-        _logger.LogDebug($"* * * {msg}: {scrapedShift.DetailUrl} {scrapedShift.Name}");
     }
 }
